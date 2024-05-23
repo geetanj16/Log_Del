@@ -1,0 +1,49 @@
+@echo off
+setlocal enabledelayedexpansion
+
+REM Loop through each directory
+for %%d in ("C:\Locobuzz\Others\CX-File-Cleanup-Task\TempDir" "C:\Locobuzz\Others\CX-File-Cleanup-Task\TempDir - 2") do (
+    REM Change the directory to the current folder
+    cd "%%d"
+    REM Initialize a counter
+    set /a count=0
+
+    REM Loop through each file sorted by date (newest first), skip the first 3 files
+    for /f "skip=3 delims=" %%i in ('dir /b /a:-d /o-d /t:c *.txt') do (
+        REM Check if the file has special permissions or is in use
+        icacls "%%i" | findstr "(S)" >nul
+        if not errorlevel 1 (
+            echo File "%%i" has special permissions or is in use.
+            REM Attempt to terminate processes using the file
+            tasklist /FI "STATUS eq RUNNING" /FO CSV /NH | findstr /I "%%~nxi" >nul
+            if not errorlevel 1 (
+                for /f "tokens=2 delims=," %%p in ('tasklist /FI "STATUS eq RUNNING" /FO CSV /NH ^| findstr /I "%%~nxi"') do (
+                    taskkill /F /PID %%p >nul 2>&1
+                    if not errorlevel 1 (
+                        echo Terminated process %%p for file "%%i"
+                    )
+                )
+            )
+            REM Attempt to delete the file
+            del "%%i" >nul 2>&1
+            if not errorlevel 1 (
+                set /a count+=1
+            ) else (
+                echo Failed to delete file "%%i"
+            )
+        ) else (
+            REM File is ready for deletion
+            del "%%i" >nul 2>&1
+            if not errorlevel 1 (
+                set /a count+=1
+            ) else (
+                echo Failed to delete file "%%i"
+            )
+        )
+    )
+
+    REM Echo how many files were deleted
+    echo !count! files deleted from path "%%d"
+)
+
+endlocal
